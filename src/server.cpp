@@ -1,5 +1,5 @@
 // Server side C/C++ program to demonstrate Socket programming
-#include "server.hpp"
+#include "server.h"
 #include <iostream>
 #include <unistd.h>
 #include <stdio.h>
@@ -18,6 +18,31 @@ ProxyServer::~ProxyServer()
 {
 
 }
+
+std::string ProxyServer::get(std::string &host, std::string &port, std::string &uri)
+{
+    int fd;
+    if ((fd = socket(AF_INET, SOCK_STREAM, 0)) == 0)
+    {
+        perror("socket failed");
+        exit(EXIT_FAILURE);
+    }
+
+    int opt = 1;
+    if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT,
+                   &opt, sizeof(opt)))
+    {
+        perror("setsockopt");
+        exit(EXIT_FAILURE);
+    }
+}
+
+std::string ProxyServer::post(std::string &host, std::string &port, std::string &uri, std::stringbuf &data)
+{
+
+}
+
+
 
 int ProxyServer::listening()
 {
@@ -85,6 +110,7 @@ Listening:
             close(new_socket);
             break;
         }
+        header hd(buffer);
         printf("%s\n", buffer );
 //        send(new_socket, hello, strlen(hello), 0 );
     }
