@@ -10,9 +10,9 @@
 
 class ProxyServer
 {
-    struct header
+    struct httpHeader
     {
-        explicit header(const std::string &headerRawStr)
+        explicit httpHeader(const std::string &headerRawStr)
         {
             std::istringstream ss(headerRawStr);
             std::string line;
@@ -42,7 +42,7 @@ class ProxyServer
                 headerMap.insert(headerMap.end(), std::pair<std::string, std::string>(v[0], v[1]));
             }
         }
-        ~header()
+        ~httpHeader()
         {
         }
 
@@ -80,9 +80,12 @@ public:
     std::string get(std::string &host, std::string &port, std::string &uri);
     std::string post(std::string &host, std::string &port, std::string &uri, std::stringbuf &data);
 
+    void doWork(int fd);
+    int extraHeader(char *pBuffer, int size);
     int listening();
 private:
     ushort mPortNumber = 0;
+    int mServerFd = 0;
 };
 
 #endif //PROXYSERVER_H

@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <netinet/in.h>
 #include <string.h>
+#include <ifaddrs.h>
 
 ProxyServer::ProxyServer(ushort portNumber)
     :mPortNumber(portNumber)
@@ -42,26 +43,68 @@ std::string ProxyServer::post(std::string &host, std::string &port, std::string 
 
 }
 
+void ProxyServer::doWork(int fd)
+{
+    char* buffer = (char *)calloc(10240, 1);
+    int datLength = read(fd, buffer, 10240);
+    if (datLength < 0) {
+        //TODO peer close the connection
+    } else if (datLength == 0) {
+        //TODO no data has been sended
+    }
+    //check whether http entire header has been readed
+    int headerLength = extraHeader(buffer, datLength);
+    httpHeader header(std::string(buffer, headerLength));
+    //just version1, so don't thinking a huge data condition
+    std::string bodyLenStr = header.headerMap[std::string("Content-Length")];
+    int bodyLen =  std::stoi(bodyLenStr);
+    if (headerLength + bodyLen > 10240) {
+        //TODO [work] will be handle later
+    }
+
+    if (headerLength + bodyLen != datLength) {
+        //TODO [error] http request error
+    }
+
+    //TODO will to get ip addr by domain name
+    close(fd);
+    free(buffer);
+}
+
+int ProxyServer::extraHeader(char *pBuffer, int size)
+{
+    int headerLength = 0;
+    for (int i = 0; i < size; ++i) {
+        if ('\r' == pBuffer[i] && i < size - 3 && '\n' == pBuffer[i+1]
+                && '\r' == pBuffer[i+2]
+                && '\n' == pBuffer[i+3])
+        {
+            break;
+        }
+        ++headerLength;
+    }
+
+    return headerLength + 4;
+}
+
 
 
 int ProxyServer::listening()
 {
-    int server_fd, new_socket, valread;
+    int new_socket;
     struct sockaddr_in address;
     int opt = 1;
     int addrlen = sizeof(address);
-//    char buffer[1024] = {0};
-    char *buffer = new char[10240];
 
     // Creating socket file descriptor
-    if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0)
+    if ((mServerFd = socket(AF_INET, SOCK_STREAM, 0)) == 0)
     {
         perror("socket failed");
         exit(EXIT_FAILURE);
     }
 
     // Forcefully attaching socket to the port 8080
-    if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT,
+    if (setsockopt(mServerFd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT,
                    &opt, sizeof(opt)))
     {
         perror("setsockopt");
@@ -72,13 +115,13 @@ int ProxyServer::listening()
     address.sin_port = htons( mPortNumber );
 
     // Forcefully attaching socket to the port 8080
-    if (bind(server_fd, (struct sockaddr *)&address,
+    if (bind(mServerFd, (struct sockaddr *)&address,
              sizeof(address))<0)
     {
         perror("bind failed");
         exit(EXIT_FAILURE);
     }
-    if (listen(server_fd, 3) < 0)
+    if (listen(mServerFd, 3) < 0)
     {
         perror("listen");
         exit(EXIT_FAILURE);
@@ -86,36 +129,37 @@ int ProxyServer::listening()
 
 Listening:
     std::cout << "*********************Listening on " << mPortNumber << "*********************\n";
-    if ((new_socket = accept(server_fd, (struct sockaddr *)&address,
+    if ((new_socket = accept(mServerFd, (struct sockaddr *)&address,
                              (socklen_t*)&addrlen))<0)
     {
         perror("accept");
         exit(EXIT_FAILURE);
     }
-    while (true)
-    {
-        std::cout << "*********ready read*********\n";
-        valread = read( new_socket, buffer, 1024);
-        std::cout << "*********length " << valread << "*********\n";
-        if (valread < 0)
-        {
-            //remote peer disconnects the connection
-            close(new_socket);
-            break;
-        }
-        if (valread == 0)
-        {
-            //TODO
-            //Set timeout to close the connection
-            close(new_socket);
-            break;
-        }
-        header hd(buffer);
-        printf("%s\n", buffer );
-//        send(new_socket, hello, strlen(hello), 0 );
-    }
-    goto Listening;
 
-    delete buffer;
+    doWork(new_socket);
+
+//    while (true)
+//    {
+//        std::cout << "*********ready read*********\n";
+//        valread = read( new_socket, buffer, 1024);
+//        std::cout << "*********length " << valread << "*********\n";
+//        if (valread < 0)
+//        {
+//            //remote peer disconnects the connection
+//            close(new_socket);
+//            break;
+//        }
+//        if (valread == 0)
+//        {
+//            //TODO
+//            //Set timeout to close the connection
+//            close(new_socket);
+//            break;
+//        }
+//        header hd(buffer);
+//        printf("%s\n", buffer );
+////        send(new_socket, hello, strlen(hello), 0 );
+//    }
+    goto Listening;
     return 0;
 }
