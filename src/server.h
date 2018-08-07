@@ -80,6 +80,7 @@ public:
     std::string get(std::string &host, std::string &port, std::string &uri);
     std::string post(std::string &host, std::string &port, std::string &uri, std::stringbuf &data);
 
+    std::string GetStdoutFromCommand(std::string cmd);
     void doWork(int fd);
     int extraHeader(char *pBuffer, int size);
     int listening();
