@@ -50,6 +50,15 @@ class ProxyServer
         {
             headerMap.clear();
         }
+
+        std::string buffer()
+        {
+            std::string bufferStr = method + " " + uri + " " + version + "\r\n";
+            for (std::map<std::string, std::string>::iterator itor = headerMap.begin(); itor != headerMap.end(); ++itor) {
+                *itor;
+            }
+            return ;
+        }
         std::map<std::string, std::string> headerMap;
         std::string method;
         std::string uri;
@@ -77,8 +86,8 @@ public:
     ~ProxyServer();
 
     //http only
-    std::string get(std::string &host, std::string &port, std::string &uri);
-    std::string post(std::string &host, std::string &port, std::string &uri, std::stringbuf &data);
+    std::string get(const httpHeader& iHttpHeader);
+    std::string post(const httpHeader& iHttpHeader);
 
     std::string GetStdoutFromCommand(std::string cmd);
     void doWork(int fd);

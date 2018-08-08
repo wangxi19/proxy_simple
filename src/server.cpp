@@ -8,6 +8,7 @@
 #include <netinet/in.h>
 #include <string.h>
 #include <ifaddrs.h>
+#include <netdb.h>
 
 ProxyServer::ProxyServer(ushort portNumber)
     :mPortNumber(portNumber)
@@ -20,25 +21,60 @@ ProxyServer::~ProxyServer()
 
 }
 
-std::string ProxyServer::get(std::string &host, std::string &port, std::string &uri)
+std::string ProxyServer::get(const httpHeader &iHttpHeader)
 {
-    int fd;
-    if ((fd = socket(AF_INET, SOCK_STREAM, 0)) == 0)
-    {
-        perror("socket failed");
-        exit(EXIT_FAILURE);
+    struct addrinfo hints;
+    struct addrinfo *result, *rp;
+    memset(&hints, 0, sizeof(struct addrinfo));
+    hints.ai_family = /*AF_UNSPEC*/AF_INET;    /* Allow IPv4 or IPv6 */
+    hints.ai_socktype = /*SOCK_DGRAM*/SOCK_STREAM; /* Datagram socket */
+    hints.ai_flags = /*AI_PASSIVE*/AI_CANONNAME;    /* For wildcard IP address */
+    hints.ai_protocol = 0;          /* Any protocol */
+    hints.ai_canonname = NULL;
+    hints.ai_addr = NULL;
+    hints.ai_next = NULL;
+    int s = getaddrinfo(header.headerMap[std::string("Host")].c_str(), NULL, &hints, &result);
+    if (s != 0) {
+        //TODO [error]
+        std::cout << "[dnsError]: " << gai_strerror(s) << std::endl;
+        freeaddrinfo(result);
+        return;
+    }
+
+    int sfd = 0;
+    for (rp == result; rp != nullptr; rp = rp->ai_next) {
+        sfd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+        if (sfd == -1)
+            continue;
+
+        if (connect(sfd, rp->ai_addr, rp->ai_addrlen) != -1)
+            break;
+
+        sfd = -1;
+    }
+    freeaddrinfo(result);
+
+    if (-1 == sfd) {
+        //TODO [error]
+        std::cout << "[dnsError]: " << "connot connect to server" << std::endl;
+        return;
     }
 
     int opt = 1;
-    if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT,
+    if (setsockopt(sfd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT,
                    &opt, sizeof(opt)))
     {
+        //TODO
         perror("setsockopt");
-        exit(EXIT_FAILURE);
+        return;
     }
+
+    write(sfd, )
+
+    close(sfd);
 }
 
-std::string ProxyServer::post(std::string &host, std::string &port, std::string &uri, std::stringbuf &data)
+std::string ProxyServer::post(const httpHeader &iHttpHeader)
 {
 
 }
@@ -74,7 +110,7 @@ void ProxyServer::doWork(int fd)
     httpHeader header(std::string(buffer, headerLength));
     //just version1, so don't thinking a huge data condition
     std::string bodyLenStr = header.headerMap[std::string("Content-Length")];
-    int bodyLen =  std::stoi(bodyLenStr);
+    int bodyLen = bodyLenStr.length() == 0 ? 0 : std::stoi(bodyLenStr);
     if (headerLength + bodyLen > 10240) {
         //TODO [work] will be handle later
     }
@@ -84,6 +120,12 @@ void ProxyServer::doWork(int fd)
     }
 
     //TODO will to get ip addr by domain name
+    if (header.method == "POST") {
+        post();
+    } else if (header.method == "GET") {
+        get();
+    }
+
     close(fd);
     free(buffer);
 }
