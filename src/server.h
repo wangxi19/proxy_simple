@@ -51,13 +51,14 @@ class ProxyServer
             headerMap.clear();
         }
 
-        std::string buffer()
+        std::string compose()
         {
             std::string bufferStr = method + " " + uri + " " + version + "\r\n";
             for (std::map<std::string, std::string>::iterator itor = headerMap.begin(); itor != headerMap.end(); ++itor) {
-                *itor;
+                bufferStr += itor->first + ": " + itor->second + "\r\n";
             }
-            return ;
+            bufferStr += "\r\n";
+            return bufferStr;
         }
         std::map<std::string, std::string> headerMap;
         std::string method;

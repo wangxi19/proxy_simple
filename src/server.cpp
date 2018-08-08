@@ -33,12 +33,12 @@ std::string ProxyServer::get(const httpHeader &iHttpHeader)
     hints.ai_canonname = NULL;
     hints.ai_addr = NULL;
     hints.ai_next = NULL;
-    int s = getaddrinfo(header.headerMap[std::string("Host")].c_str(), NULL, &hints, &result);
+    int s = getaddrinfo(iHttpHeader.headerMap[std::string("Host")].c_str(), NULL, &hints, &result);
     if (s != 0) {
         //TODO [error]
         std::cout << "[dnsError]: " << gai_strerror(s) << std::endl;
         freeaddrinfo(result);
-        return;
+        return std::string("");
     }
 
     int sfd = 0;
@@ -57,7 +57,7 @@ std::string ProxyServer::get(const httpHeader &iHttpHeader)
     if (-1 == sfd) {
         //TODO [error]
         std::cout << "[dnsError]: " << "connot connect to server" << std::endl;
-        return;
+        return std::string();
     }
 
     int opt = 1;
@@ -66,12 +66,25 @@ std::string ProxyServer::get(const httpHeader &iHttpHeader)
     {
         //TODO
         perror("setsockopt");
-        return;
+        return std::string();
     }
 
-    write(sfd, )
+    std::string bufStr = iHttpHeader.compose();
+    write(sfd, bufStr.c_str(), bufStr.length());
+    bufStr.clear();
+    char *pBuffer = (char*)calloc(10240, 1);
+    int rvSize = read(sfd, pBuffer, 10240);
+    if (rvSize == 0) {
+        //TODO [error]
+    }
+    if (rvSize < 0) {
+        //TODO [error]
+    }
 
+    bufStr = pBuffer;
+    free(pBuffer);
     close(sfd);
+    return bufStr;
 }
 
 std::string ProxyServer::post(const httpHeader &iHttpHeader)
@@ -120,11 +133,13 @@ void ProxyServer::doWork(int fd)
     }
 
     //TODO will to get ip addr by domain name
+    std::string bufStr;
     if (header.method == "POST") {
-        post();
+//        post();
     } else if (header.method == "GET") {
-        get();
+        bufStr = get(header);
     }
+    write(fd, bufStr, bufStr.length());
 
     close(fd);
     free(buffer);
