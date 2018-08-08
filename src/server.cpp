@@ -33,7 +33,7 @@ std::string ProxyServer::get(const httpHeader &iHttpHeader)
     hints.ai_canonname = NULL;
     hints.ai_addr = NULL;
     hints.ai_next = NULL;
-    int s = getaddrinfo(iHttpHeader.headerMap[std::string("Host")].c_str(), NULL, &hints, &result);
+    int s = getaddrinfo(iHttpHeader.getHeader("Host").c_str(), NULL, &hints, &result);
     if (s != 0) {
         //TODO [error]
         std::cout << "[dnsError]: " << gai_strerror(s) << std::endl;
@@ -139,7 +139,7 @@ void ProxyServer::doWork(int fd)
     } else if (header.method == "GET") {
         bufStr = get(header);
     }
-    write(fd, bufStr, bufStr.length());
+    write(fd, bufStr.c_str(), bufStr.length());
 
     close(fd);
     free(buffer);
