@@ -1,5 +1,6 @@
 #ifndef PROXYSERVER_H
 #define PROXYSERVER_H
+#define UNUSED(arg) (void)arg;
 
 #include <sys/types.h>
 #include <string>
@@ -25,13 +26,17 @@ class ProxyServer
             //parse url and uri, parameters will be merged to uri
             std::regex rgx("((\\w+\\://)?[^/]+)(/.*)");
             std::smatch match;
-//            if (std::regex_search(s.begin(), s.end(), match, rgx))
+            //            if (std::regex_search(s.begin(), s.end(), match, rgx))
             if (std::regex_search(uri, match, rgx)) {
                 url = match[1];
                 std::vector<std::string> v;
                 ProxyServer::split(url, v, ":");
-                if (v.size() > 1 && v[v.size() - 1].find("//") == std::string::npos) port = v[v.size() -1];
-                else port = "80";
+                if (v.size() > 1 && v[v.size() - 1].find("//") == std::string::npos){
+                    port = std::stoi(v[v.size() -1]);
+                }
+                else {
+                    port = std::stoi("80");
+                }
                 uri = match[3];
             }
 
@@ -90,7 +95,7 @@ class ProxyServer
         std::string method;
         std::string uri;
         std::string url;
-        std::string port;
+        unsigned int port;
         std::string version;
     };
 

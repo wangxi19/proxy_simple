@@ -9,6 +9,8 @@
 #include <string.h>
 #include <ifaddrs.h>
 #include <netdb.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 
 ProxyServer::ProxyServer(ushort portNumber)
     :mPortNumber(portNumber)
@@ -46,8 +48,17 @@ std::string ProxyServer::get(const httpHeader &iHttpHeader)
         sfd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
         if (sfd == -1)
             continue;
-//TODO
-        if (connect(sfd, rp->ai_addr, rp->ai_addrlen) != -1)
+
+//        struct sockaddr_in dst;
+//        memset(&dst, 0, sizeof(dst));
+//        dst.sin_addr.s_addr = inet_addr("180.97.33.108");
+//        dst.sin_family = rp->ai_family;
+//        dst.sin_port = htons(iHttpHeader.port);
+
+        //set the port number
+        uint16_t portNb = htons(iHttpHeader.port);
+        memcpy(rp->ai_addr->sa_data, &portNb, 2);
+        if (connect(sfd, rp->ai_addr, sizeof(struct sockaddr)) != -1)
             break;
 
         sfd = -1;
@@ -89,7 +100,8 @@ std::string ProxyServer::get(const httpHeader &iHttpHeader)
 
 std::string ProxyServer::post(const httpHeader &iHttpHeader)
 {
-
+    UNUSED(iHttpHeader);
+    return std::string();
 }
 
 std::string ProxyServer::GetStdoutFromCommand(std::string cmd)
