@@ -141,6 +141,8 @@ void ProxyServer::doWork(int fd)
             break;
         }
     }
+
+    //TODO [bug] will be crashed when bodyLenStr is not a valid numeric
     int bodyLen = bodyLenStr.length() == 0 ? 0 : std::stoi(bodyLenStr);
     if (headerLength + bodyLen > 10240) {
         //TODO [work] will be handle later
