@@ -42,11 +42,11 @@ std::string ProxyServer::get(const httpHeader &iHttpHeader)
     }
 
     int sfd = 0;
-    for (rp == result; rp != nullptr; rp = rp->ai_next) {
+    for (rp = result; rp != nullptr; rp = rp->ai_next) {
         sfd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
         if (sfd == -1)
             continue;
-
+//TODO
         if (connect(sfd, rp->ai_addr, rp->ai_addrlen) != -1)
             break;
 
@@ -236,4 +236,20 @@ Listening:
 //    }
     goto Listening;
     return 0;
+}
+
+void ProxyServer::split(const std::string &s, std::vector<std::string> &v, const std::string &c)
+{
+    std::string::size_type pos1, pos2;
+    pos2 = s.find(c);
+    pos1 = 0;
+    while(std::string::npos != pos2)
+    {
+        v.push_back(s.substr(pos1, pos2-pos1));
+
+        pos1 = pos2 + c.size();
+        pos2 = s.find(c, pos1);
+    }
+    if(pos1 != s.length())
+        v.push_back(s.substr(pos1));
 }

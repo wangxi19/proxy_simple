@@ -7,6 +7,7 @@
 #include <sstream>
 #include <istream>
 #include <vector>
+#include <regex>
 
 class ProxyServer
 {
@@ -20,6 +21,20 @@ class ProxyServer
             std::istringstream ss2(line);
             ss2 >> method;
             ss2 >> uri;
+
+            //parse url and uri, parameters will be merged to uri
+            std::regex rgx("((\\w+\\://)?[^/]+)(/.*)");
+            std::smatch match;
+//            if (std::regex_search(s.begin(), s.end(), match, rgx))
+            if (std::regex_search(uri, match, rgx)) {
+                url = match[1];
+                std::vector<std::string> v;
+                ProxyServer::split(url, v, ":");
+                if (v.size() > 1 && v[v.size() - 1].find("//") == std::string::npos) port = v[v.size() -1];
+                else port = "80";
+                uri = match[3];
+            }
+
             ss2 >> version;
 
             while (std::getline(ss, line)) {
@@ -34,7 +49,7 @@ class ProxyServer
                 //trim the '\r'
                 line = line.substr(0, line.length() - 1);
                 std::vector<std::string> v;
-                split(line, v, ": ");
+                ProxyServer::split(line, v, ": ");
                 if (v.size() != 2) {
                     //TODO error
                     continue;
@@ -53,7 +68,7 @@ class ProxyServer
 
         std::string compose() const
         {
-            std::string bufferStr = method + " " + uri + " " + version + "\r\n";
+            std::string bufferStr = method + " " + url + uri + " " + version + "\r\n";
             for (auto const &itor: headerMap) {
                 bufferStr += itor.first + ": " + itor.second + "\r\n";
             }
@@ -64,30 +79,21 @@ class ProxyServer
         std::string getHeader(const std::string &iHeaderNm)
         const
         {
-            std::string val = headerMap[iHeaderNm];
-            return val;
+            for (auto const &itor: headerMap) {
+                if (itor.first == iHeaderNm) {
+                    return itor.second;
+                }
+            }
+            return std::string();
         }
         std::map<std::string, std::string> headerMap;
         std::string method;
         std::string uri;
+        std::string url;
+        std::string port;
         std::string version;
     };
 
-static void split(const std::string& s, std::vector<std::string>& v, const std::string& c)
-{
-    std::string::size_type pos1, pos2;
-    pos2 = s.find(c);
-    pos1 = 0;
-    while(std::string::npos != pos2)
-    {
-        v.push_back(s.substr(pos1, pos2-pos1));
-
-        pos1 = pos2 + c.size();
-        pos2 = s.find(c, pos1);
-    }
-    if(pos1 != s.length())
-        v.push_back(s.substr(pos1));
-}
 
 public:
     explicit ProxyServer(ushort portNumber);
@@ -101,6 +107,7 @@ public:
     void doWork(int fd);
     int extraHeader(char *pBuffer, int size);
     int listening();
+    static void split(const std::string &s, std::vector<std::string> &v, const std::string &c);
 private:
     ushort mPortNumber = 0;
     int mServerFd = 0;
