@@ -134,7 +134,13 @@ void ProxyServer::doWork(int fd)
     int headerLength = extraHeader(buffer, datLength);
     httpHeader header(std::string(buffer, headerLength));
     //just version1, so don't thinking a huge data condition
-    std::string bodyLenStr = header.headerMap[std::string("Content-Length")];
+    std::string bodyLenStr;;
+    for (const auto &itor: header.headerMap) {
+        if (itor.first == std::string("Content-Length")) {
+            bodyLenStr = itor.second;
+            break;
+        }
+    }
     int bodyLen = bodyLenStr.length() == 0 ? 0 : std::stoi(bodyLenStr);
     if (headerLength + bodyLen > 10240) {
         //TODO [work] will be handle later
