@@ -25,17 +25,8 @@ ProxyServer::~ProxyServer()
 
 std::string ProxyServer::get(const httpHeader &iHttpHeader)
 {
-    struct addrinfo hints;
     struct addrinfo *result, *rp;
-    memset(&hints, 0, sizeof(struct addrinfo));
-    hints.ai_family = /*AF_UNSPEC*/AF_INET;    /* Allow IPv4 or IPv6 */
-    hints.ai_socktype = /*SOCK_DGRAM*/SOCK_STREAM; /* Datagram socket */
-    hints.ai_flags = /*AI_PASSIVE*/AI_CANONNAME;    /* For wildcard IP address */
-    hints.ai_protocol = 0;          /* Any protocol */
-    hints.ai_canonname = NULL;
-    hints.ai_addr = NULL;
-    hints.ai_next = NULL;
-    int s = getaddrinfo(iHttpHeader.getHeader("Host").c_str(), NULL, &hints, &result);
+    int s = dns(&result, iHttpHeader.getHeader("Host").c_str());
     if (s != 0) {
         //TODO [error]
         std::cout << "[dnsError]: " << gai_strerror(s) << std::endl;
@@ -48,12 +39,6 @@ std::string ProxyServer::get(const httpHeader &iHttpHeader)
         sfd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
         if (sfd == -1)
             continue;
-
-//        struct sockaddr_in dst;
-//        memset(&dst, 0, sizeof(dst));
-//        dst.sin_addr.s_addr = inet_addr("180.97.33.108");
-//        dst.sin_family = rp->ai_family;
-//        dst.sin_port = htons(iHttpHeader.port);
 
         //set the port number
         uint16_t portNb = htons(iHttpHeader.port);
@@ -98,9 +83,72 @@ std::string ProxyServer::get(const httpHeader &iHttpHeader)
     return bufStr;
 }
 
-std::string ProxyServer::post(const httpHeader &iHttpHeader)
+std::string ProxyServer::post(const httpHeader &iHttpHeader, const char * const pData, int size, int __sidx)
 {
     UNUSED(iHttpHeader);
+    UNUSED(pData);
+
+    struct addrinfo *result, *rp;
+    int s = dns(&result, iHttpHeader.getHeader("Host").c_str());
+    if (s != 0) {
+        //TODO [error]
+        std::cout << "[dnsError]: " << gai_strerror(s) << std::endl;
+        freeaddrinfo(result);
+        return std::string("");
+    }
+
+    int sfd = 0;
+    for (rp = result; rp != nullptr; rp = rp->ai_next) {
+        sfd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+        if (sfd == -1)
+            continue;
+
+        //set the port number
+        uint16_t portNb = htons(iHttpHeader.port);
+        memcpy(rp->ai_addr->sa_data, &portNb, 2);
+        if (connect(sfd, rp->ai_addr, sizeof(struct sockaddr)) != -1)
+            break;
+
+        sfd = -1;
+    }
+    freeaddrinfo(result);
+
+    if (-1 == sfd) {
+        //TODO [error]
+        std::cout << "[dnsError]: " << "connot connect to server" << std::endl;
+        return std::string();
+    }
+
+    int opt = 1;
+    if (setsockopt(sfd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT,
+                   &opt, sizeof(opt)))
+    {
+        //TODO
+        perror("setsockopt");
+        return std::string();
+    }
+
+    std::string bufStr = iHttpHeader.compose();
+    write(sfd, bufStr.c_str(), bufStr.length());
+    bufStr.clear();
+    if (__sidx < 0) __sidx = 0;
+    if (size > 0)
+        write(sfd, pData + __sidx, size);
+
+    char *pBuffer = (char*)calloc(10240, 1);
+    int rvSize = read(sfd, pBuffer, 10240);
+    if (rvSize == 0) {
+        //TODO [error]
+    }
+    if (rvSize < 0) {
+        //TODO [error]
+    }
+
+    bufStr = pBuffer;
+    free(pBuffer);
+    close(sfd);
+    return bufStr;
+
     return std::string();
 }
 
@@ -134,7 +182,7 @@ void ProxyServer::doWork(int fd)
     int headerLength = extraHeader(buffer, datLength);
     httpHeader header(std::string(buffer, headerLength));
     //just version1, so don't thinking a huge data condition
-    std::string bodyLenStr;;
+    std::string bodyLenStr;
     for (const auto &itor: header.headerMap) {
         if (itor.first == std::string("Content-Length")) {
             bodyLenStr = itor.second;
@@ -155,13 +203,12 @@ void ProxyServer::doWork(int fd)
     //TODO will to get ip addr by domain name
     std::string bufStr;
     if (header.method == "POST") {
-//        post();
+        bufStr = post(header, buffer, bodyLen, headerLength);
     } else if (header.method == "GET") {
         bufStr = get(header);
     }
     write(fd, bufStr.c_str(), bufStr.length());
 
-    close(fd);
     free(buffer);
 }
 
@@ -231,29 +278,7 @@ Listening:
     }
 
     doWork(new_socket);
-
-//    while (true)
-//    {
-//        std::cout << "*********ready read*********\n";
-//        valread = read( new_socket, buffer, 1024);
-//        std::cout << "*********length " << valread << "*********\n";
-//        if (valread < 0)
-//        {
-//            //remote peer disconnects the connection
-//            close(new_socket);
-//            break;
-//        }
-//        if (valread == 0)
-//        {
-//            //TODO
-//            //Set timeout to close the connection
-//            close(new_socket);
-//            break;
-//        }
-//        header hd(buffer);
-//        printf("%s\n", buffer );
-////        send(new_socket, hello, strlen(hello), 0 );
-//    }
+    close(new_socket);
     goto Listening;
     return 0;
 }
@@ -272,4 +297,18 @@ void ProxyServer::split(const std::string &s, std::vector<std::string> &v, const
     }
     if(pos1 != s.length())
         v.push_back(s.substr(pos1));
+}
+
+inline int ProxyServer::dns(addrinfo **result, const char *domain)
+{
+    struct addrinfo hints;
+    memset(&hints, 0, sizeof(struct addrinfo));
+    hints.ai_family = /*AF_UNSPEC*/AF_INET;    /* Allow IPv4 or IPv6 */
+    hints.ai_socktype = /*SOCK_DGRAM*/SOCK_STREAM; /* Datagram socket */
+    hints.ai_flags = /*AI_PASSIVE*/AI_CANONNAME;    /* For wildcard IP address */
+    hints.ai_protocol = 0;          /* Any protocol */
+    hints.ai_canonname = NULL;
+    hints.ai_addr = NULL;
+    hints.ai_next = NULL;
+    return getaddrinfo(domain, NULL, &hints, result);
 }

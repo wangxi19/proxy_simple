@@ -106,7 +106,7 @@ public:
 
     //http only
     std::string get(const httpHeader& iHttpHeader);
-    std::string post(const httpHeader& iHttpHeader);
+    std::string post(const httpHeader& iHttpHeader, const char* const pData, int size, int __sidx = 0);
 
     std::string GetStdoutFromCommand(std::string cmd);
     void doWork(int fd);
@@ -114,6 +114,8 @@ public:
     int listening();
     static void split(const std::string &s, std::vector<std::string> &v, const std::string &c);
 private:
+    inline int dns(struct addrinfo **result, const char* domain);
+
     ushort mPortNumber = 0;
     int mServerFd = 0;
 };
