@@ -114,7 +114,7 @@ public:
     int listening();
     static void split(const std::string &s, std::vector<std::string> &v, const std::string &c);
 private:
-    inline int dns(struct addrinfo **result, const char* domain);
+    inline int dns(struct addrinfo **result, const std::string& domain);
 
     ushort mPortNumber = 0;
     int mServerFd = 0;

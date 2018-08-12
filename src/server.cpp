@@ -93,7 +93,6 @@ std::string ProxyServer::post(const httpHeader &iHttpHeader, const char * const 
     if (s != 0) {
         //TODO [error]
         std::cout << "[dnsError]: " << gai_strerror(s) << std::endl;
-        freeaddrinfo(result);
         return std::string("");
     }
 
@@ -299,8 +298,22 @@ void ProxyServer::split(const std::string &s, std::vector<std::string> &v, const
         v.push_back(s.substr(pos1));
 }
 
-inline int ProxyServer::dns(addrinfo **result, const char *domain)
+inline int ProxyServer::dns(addrinfo **result, const std::string &domain)
 {
+    std::regex rgx("^\\s*(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3})(\\:\\d+)?\\s*$");
+    std::smatch match;
+    if (std::regex_search(domain, match, rgx)) {
+        if (match[1].length() > 0) {
+            memcpy((*result)->ai_addr->sa_data + 2, inet_addr(match[1].c_str()), 4);
+        }
+
+        if (match[2].length() > 0) {
+            //cp port number
+        }
+
+        return 1;
+    }
+//    (*result)->ai_addr->sa_data
     struct addrinfo hints;
     memset(&hints, 0, sizeof(struct addrinfo));
     hints.ai_family = /*AF_UNSPEC*/AF_INET;    /* Allow IPv4 or IPv6 */
@@ -310,5 +323,5 @@ inline int ProxyServer::dns(addrinfo **result, const char *domain)
     hints.ai_canonname = NULL;
     hints.ai_addr = NULL;
     hints.ai_next = NULL;
-    return getaddrinfo(domain, NULL, &hints, result);
+    return getaddrinfo(domain.c_str(), NULL, &hints, result);
 }
