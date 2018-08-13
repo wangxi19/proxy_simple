@@ -2,6 +2,7 @@
 #define PROXYSERVER_H
 #define UNUSED(arg) (void)arg;
 
+#include "util.h"
 #include <sys/types.h>
 #include <string>
 #include <map>
@@ -30,7 +31,7 @@ class ProxyServer
             if (std::regex_search(uri, match, rgx)) {
                 url = match[1];
                 std::vector<std::string> v;
-                ProxyServer::split(url, v, ":");
+                Util::split(url, v, ":");
                 if (v.size() > 1 && v[v.size() - 1].find("//") == std::string::npos){
                     port = std::stoi(v[v.size() -1]);
                 }
@@ -54,7 +55,7 @@ class ProxyServer
                 //trim the '\r'
                 line = line.substr(0, line.length() - 1);
                 std::vector<std::string> v;
-                ProxyServer::split(line, v, ": ");
+                Util::split(line, v, ": ");
                 if (v.size() != 2) {
                     //TODO error
                     continue;
@@ -104,20 +105,19 @@ public:
     explicit ProxyServer(ushort portNumber);
     ~ProxyServer();
 
-    //http only
-    std::string get(const httpHeader& iHttpHeader);
-    std::string post(const httpHeader& iHttpHeader, const char* const pData, int size, int __sidx = 0);
+    //send get, post or others request
+    std::string fire(const httpHeader& iHttpHeader, const char* const pData = nullptr, int size = 0, int __sidx = 0);
 
     std::string GetStdoutFromCommand(std::string cmd);
     void doWork(int fd);
     int extraHeader(char *pBuffer, int size);
     int listening();
-    static void split(const std::string &s, std::vector<std::string> &v, const std::string &c);
+
 private:
     inline int dns(struct addrinfo **result, const std::string& domain);
 
-    ushort mPortNumber = 0;
-    int mServerFd = 0;
+    ushort mPortNumber{0};
+    int mServerFd{0};
 };
 
 #endif //PROXYSERVER_H

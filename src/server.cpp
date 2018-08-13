@@ -23,67 +23,7 @@ ProxyServer::~ProxyServer()
 
 }
 
-std::string ProxyServer::get(const httpHeader &iHttpHeader)
-{
-    struct addrinfo *result, *rp;
-    int s = dns(&result, iHttpHeader.getHeader("Host").c_str());
-    if (s != 0) {
-        //TODO [error]
-        std::cout << "[dnsError]: " << gai_strerror(s) << std::endl;
-        freeaddrinfo(result);
-        return std::string("");
-    }
-
-    int sfd = 0;
-    for (rp = result; rp != nullptr; rp = rp->ai_next) {
-        sfd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
-        if (sfd == -1)
-            continue;
-
-        //set the port number
-        uint16_t portNb = htons(iHttpHeader.port);
-        memcpy(rp->ai_addr->sa_data, &portNb, 2);
-        if (connect(sfd, rp->ai_addr, sizeof(struct sockaddr)) != -1)
-            break;
-
-        sfd = -1;
-    }
-    freeaddrinfo(result);
-
-    if (-1 == sfd) {
-        //TODO [error]
-        std::cout << "[dnsError]: " << "connot connect to server" << std::endl;
-        return std::string();
-    }
-
-    int opt = 1;
-    if (setsockopt(sfd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT,
-                   &opt, sizeof(opt)))
-    {
-        //TODO
-        perror("setsockopt");
-        return std::string();
-    }
-
-    std::string bufStr = iHttpHeader.compose();
-    write(sfd, bufStr.c_str(), bufStr.length());
-    bufStr.clear();
-    char *pBuffer = (char*)calloc(10240, 1);
-    int rvSize = read(sfd, pBuffer, 10240);
-    if (rvSize == 0) {
-        //TODO [error]
-    }
-    if (rvSize < 0) {
-        //TODO [error]
-    }
-
-    bufStr = pBuffer;
-    free(pBuffer);
-    close(sfd);
-    return bufStr;
-}
-
-std::string ProxyServer::post(const httpHeader &iHttpHeader, const char * const pData, int size, int __sidx)
+std::string ProxyServer::fire(const httpHeader &iHttpHeader, const char * const pData, int size, int __sidx)
 {
     UNUSED(iHttpHeader);
     UNUSED(pData);
@@ -131,7 +71,7 @@ std::string ProxyServer::post(const httpHeader &iHttpHeader, const char * const 
     write(sfd, bufStr.c_str(), bufStr.length());
     bufStr.clear();
     if (__sidx < 0) __sidx = 0;
-    if (size > 0)
+    if (size > 0 && nullptr != pData)
         write(sfd, pData + __sidx, size);
 
     char *pBuffer = (char*)calloc(10240, 1);
@@ -147,8 +87,6 @@ std::string ProxyServer::post(const httpHeader &iHttpHeader, const char * const 
     free(pBuffer);
     close(sfd);
     return bufStr;
-
-    return std::string();
 }
 
 std::string ProxyServer::GetStdoutFromCommand(std::string cmd)
@@ -202,9 +140,9 @@ void ProxyServer::doWork(int fd)
     //TODO will to get ip addr by domain name
     std::string bufStr;
     if (header.method == "POST") {
-        bufStr = post(header, buffer, bodyLen, headerLength);
+        bufStr = fire(header, buffer, bodyLen, headerLength);
     } else if (header.method == "GET") {
-        bufStr = get(header);
+        bufStr = fire(header);
     }
     write(fd, bufStr.c_str(), bufStr.length());
 
@@ -282,38 +220,37 @@ Listening:
     return 0;
 }
 
-void ProxyServer::split(const std::string &s, std::vector<std::string> &v, const std::string &c)
-{
-    std::string::size_type pos1, pos2;
-    pos2 = s.find(c);
-    pos1 = 0;
-    while(std::string::npos != pos2)
-    {
-        v.push_back(s.substr(pos1, pos2-pos1));
-
-        pos1 = pos2 + c.size();
-        pos2 = s.find(c, pos1);
-    }
-    if(pos1 != s.length())
-        v.push_back(s.substr(pos1));
-}
-
 inline int ProxyServer::dns(addrinfo **result, const std::string &domain)
 {
     std::regex rgx("^\\s*(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3})(\\:\\d+)?\\s*$");
     std::smatch match;
     if (std::regex_search(domain, match, rgx)) {
+        (*result) = new addrinfo;
+        memset(*result, 0, sizeof(addrinfo));
+        (*result)->ai_addr = new sockaddr;
+        memset((*result)->ai_addr, 0, sizeof(sockaddr));
+        (*result)->ai_addr->sa_family = 2;
+        (*result)->ai_addrlen = sizeof(sockaddr);
+        (*result)->ai_family = 2;
+        (*result)->ai_protocol = 6;
+        (*result)->ai_socktype = 1;
         if (match[1].length() > 0) {
-            memcpy((*result)->ai_addr->sa_data + 2, inet_addr(match[1].c_str()), 4);
+            in_addr_t ipAddr = inet_addr(match[1].str().c_str());
+            memcpy(static_cast<char *>((*result)->ai_addr->sa_data) + 2, (void*)&ipAddr, 4);
         }
 
         if (match[2].length() > 0) {
             //cp port number
+            std::string portStr = match[2];
+            portStr = portStr.substr(1);
+            int pt = std::stoi(portStr);
+            uint16_t port = htons(pt);
+            memcpy(static_cast<char*>((*result)->ai_addr->sa_data), (void*)&port, 2);
         }
 
-        return 1;
+        return 0;
     }
-//    (*result)->ai_addr->sa_data
+
     struct addrinfo hints;
     memset(&hints, 0, sizeof(struct addrinfo));
     hints.ai_family = /*AF_UNSPEC*/AF_INET;    /* Allow IPv4 or IPv6 */
