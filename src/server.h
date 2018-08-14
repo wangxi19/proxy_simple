@@ -10,6 +10,7 @@
 #include <istream>
 #include <vector>
 #include <regex>
+#include <functional>
 
 class ProxyServer
 {
@@ -106,7 +107,11 @@ public:
     ~ProxyServer();
 
     //send get, post or others request
-    std::string fire(const httpHeader& iHttpHeader, const char* const pData = nullptr, int size = 0, int __sidx = 0);
+    void fire(const httpHeader& iHttpHeader,
+                     std::function<void (const char *, const size_t)>& handleDataRcv,
+                     const char* const pData = nullptr,
+                     int size = 0,
+                     int __sidx = 0);
 
     std::string GetStdoutFromCommand(std::string cmd);
     void doWork(int fd);

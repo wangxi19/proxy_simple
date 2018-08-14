@@ -23,7 +23,9 @@ ProxyServer::~ProxyServer()
 
 }
 
-std::string ProxyServer::fire(const httpHeader &iHttpHeader, const char * const pData, int size, int __sidx)
+void ProxyServer::fire(const httpHeader &iHttpHeader,
+                              std::function<void (const char *, const size_t)>& handleDataRcv,
+                              const char * const pData, int size, int __sidx)
 {
     UNUSED(iHttpHeader);
     UNUSED(pData);
@@ -33,7 +35,7 @@ std::string ProxyServer::fire(const httpHeader &iHttpHeader, const char * const 
     if (s != 0) {
         //TODO [error]
         std::cout << "[dnsError]: " << gai_strerror(s) << std::endl;
-        return std::string("");
+        return ;
     }
 
     int sfd = 0;
@@ -55,7 +57,7 @@ std::string ProxyServer::fire(const httpHeader &iHttpHeader, const char * const 
     if (-1 == sfd) {
         //TODO [error]
         std::cout << "[dnsError]: " << "connot connect to server" << std::endl;
-        return std::string();
+        return ;
     }
 
     int opt = 1;
@@ -64,29 +66,30 @@ std::string ProxyServer::fire(const httpHeader &iHttpHeader, const char * const 
     {
         //TODO
         perror("setsockopt");
-        return std::string();
+        return ;
     }
 
     std::string bufStr = iHttpHeader.compose();
     write(sfd, bufStr.c_str(), bufStr.length());
-    bufStr.clear();
     if (__sidx < 0) __sidx = 0;
     if (size > 0 && nullptr != pData)
         write(sfd, pData + __sidx, size);
 
     char *pBuffer = (char*)calloc(10240, 1);
-    int rvSize = read(sfd, pBuffer, 10240);
-    if (rvSize == 0) {
-        //TODO [error]
-    }
-    if (rvSize < 0) {
-        //TODO [error]
+    while (true) {
+        int rvSize = read(sfd, pBuffer, 10240);
+        if (rvSize == 0) {
+            break;
+        }
+        if (rvSize < 0) {
+            break;
+        }
+        handleDataRcv(pBuffer, rvSize);
     }
 
-    bufStr = pBuffer;
     free(pBuffer);
     close(sfd);
-    return bufStr;
+    return ;
 }
 
 std::string ProxyServer::GetStdoutFromCommand(std::string cmd)
@@ -139,12 +142,14 @@ void ProxyServer::doWork(int fd)
 
     //TODO will to get ip addr by domain name
     std::string bufStr;
+    std::function<void(const char*, const size_t)> handleRcv = [fd](const char* pDat, const size_t size){
+        write(fd, pDat, size);
+    };
     if (header.method == "POST") {
-        bufStr = fire(header, buffer, bodyLen, headerLength);
+        bufStr = fire(header, handleRcv, buffer, bodyLen, headerLength);
     } else if (header.method == "GET") {
-        bufStr = fire(header);
+        bufStr = fire(header, handleRcv);
     }
-    write(fd, bufStr.c_str(), bufStr.length());
 
     free(buffer);
 }
